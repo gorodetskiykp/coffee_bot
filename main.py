@@ -37,9 +37,11 @@ def get_order(message):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     place_message = 'Сменить место' if places else 'Выбрать место'
     keyboard.add(
-        types.InlineKeyboardButton(text=m.THATSALL, callback_data='coffee_time'),
+        types.InlineKeyboardButton(text=place_message,
+                                   callback_data='choose_place'),
         types.InlineKeyboardButton(text=m.CLEAR, callback_data='clear_order'),
-        types.InlineKeyboardButton(text=place_message, callback_data='choose_place'),
+        types.InlineKeyboardButton(text=m.THATSALL,
+                                   callback_data='coffee_time'),
     )
     bot.send_message(message.chat.id, m.OR, reply_markup=keyboard)
 
