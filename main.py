@@ -86,7 +86,7 @@ def callback_handler(call):
     elif call.data == 'coffee_time':
         if choices:
             if places:
-                order_no = randint(1000, 9999)
+                order_no = 'Заказ № {}'.format(randint(1000, 9999))
                 bot.send_message(call.message.chat.id, m.COOKING.format(order_no))
                 for barista in BARISTAS:
                     client = '{} {} @{}'.format(
@@ -94,7 +94,6 @@ def callback_handler(call):
                         call.message.chat.last_name,
                         call.message.chat.username
                     )
-                    order_no = 'Заказ № {}'.format(order_no)
                     order = order_no, client, order_format(choices)
                     bot.send_message(barista, '\n'.join(order))
                 choices.clear()
