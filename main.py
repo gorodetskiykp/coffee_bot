@@ -59,7 +59,7 @@ def get_order(message):
     bot.send_message(message.chat.id, m.OR, reply_markup=keyboard)
 
 
-def order_format(message, items):
+def order_format(items, message):
     order_items = set(items)
     place = ('➡️ {}'.format(places[message.chat.id][0])
              if places[message.chat.id] else '👀 Мы не знаем, где вы(')
