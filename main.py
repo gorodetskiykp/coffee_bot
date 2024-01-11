@@ -1,3 +1,6 @@
+import logging
+import smtplib
+
 from collections import defaultdict
 from random import randint
 
@@ -9,8 +12,34 @@ import messages as m
 from config import TOKEN, BARISTAS
 
 bot = telebot.TeleBot(TOKEN)
-choices = defaultdict(list)
-places = defaultdict(list)
+choices = defaultdict(list)  # для каждого пользователя список выбранных напитков
+places_choice = defaultdict(list)  # для каждого пользователя список доступных мест
+places = defaultdict(list)  # для каждого пользователя текущее место заказа
+
+logger = telebot.logger
+logger.setLevel(logging.DEBUG)
+
+
+def send_mail():
+    HOST = 'smtp.gmail.com'
+    SUBJECT = 'Hello'
+    TO = ''
+    FROM = ''
+    text = 'HELLO'
+
+    BODY = "\r\n".join((
+        "From: %s" % FROM,
+        "To: %s" % TO,
+        "Subject: %s" % SUBJECT,
+        "",
+        text
+    ))
+
+    client = smtplib.SMTP(HOST, port=587)
+    client.starttls()
+    client.login('', '')
+    client.sendmail(FROM, [TO], BODY)
+    client.quit()
 
 
 def choose_coffee(message):
@@ -34,15 +63,39 @@ def choose_coffee(message):
 def choose_place(message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     buttons = []
-    for idx, coffee_type in enumerate(m.PLACES_BUTTONS):
+    places = places_choice[message.chat.id] if places_choice[message.chat.id] else m.PLACES_BUTTONS
+    for idx, place in enumerate(places):
         buttons.append(
             types.InlineKeyboardButton(
-                text=coffee_type,
+                text=place,
                 callback_data='place_button_pressed:{}'.format(idx)
             )
         )
+    buttons.append(
+        types.InlineKeyboardButton(
+            text='Другое',
+            callback_data='place_button_pressed:{}'.format('other')
+        )
+    )
     keyboard.add(*buttons)
     bot.send_message(message.chat.id, 'А вы где?', reply_markup=keyboard)
+
+
+def choose_other_place(message):
+    if places[message.chat.id]:
+        places[message.chat.id][0] = message.text
+    else:
+        places[message.chat.id].append(message.text)
+    if places_choice[message.chat.id]:
+        places_choice[message.chat.id].append(message.text)
+    else:
+        places_choice[message.chat.id] = m.PLACES_BUTTONS + [message.text]
+    bot.send_message(
+        message.chat.id,
+        order_format(choices[message.chat.id], message)
+    )
+    choose_coffee(message)
+    get_order(message)
 
 
 def get_order(message):
@@ -62,7 +115,7 @@ def get_order(message):
 def order_format(items, message):
     order_items = set(items)
     place = ('➡️ {}'.format(places[message.chat.id][0])
-             if places[message.chat.id] else '👀 Мы не знаем, где вы(')
+             if places[message.chat.id] else '👀 Мы не знаем, где вы(*')
 
     return '\n'.join(
         sorted([m.ORDER_FORMAT.format(item.capitalize(), items.count(item))
@@ -74,6 +127,12 @@ def start_message(message):
     client = message.chat.first_name
     bot.send_message(message.chat.id, m.START.format(client))
     choose_coffee(message)
+
+
+@bot.message_handler(commands=['vks'])
+def start_message(message):
+    with open('vks.pdf', 'rb') as file:
+        bot.send_document(message.chat.id, file.read(), visible_file_name="ВКС.pdf")
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -88,17 +147,23 @@ def callback_handler(call):
         choose_coffee(call.message)
         get_order(call.message)
     elif 'place_button_pressed' in call.data:
-        choice = m.PLACES_BUTTONS[int(call.data.split(':')[-1])]
-        if places[call.message.chat.id]:
-            places[call.message.chat.id][0] = choice
+        place_index = call.data.split(':')[-1]
+        if place_index == 'other':
+            bot.send_message(call.message.chat.id, 'Куда принести?')
+            bot.register_next_step_handler(call.message, choose_other_place)
         else:
-            places[call.message.chat.id].append(choice)
-        bot.send_message(
-            call.message.chat.id,
-            order_format(choices[call.message.chat.id], call.message)
-        )
-        choose_coffee(call.message)
-        get_order(call.message)
+            places_list = places_choice[call.message.chat.id] if places_choice[call.message.chat.id] else m.PLACES_BUTTONS
+            choice = places_list[int(place_index)]
+            if places[call.message.chat.id]:
+                places[call.message.chat.id][0] = choice
+            else:
+                places[call.message.chat.id].append(choice)
+            bot.send_message(
+                call.message.chat.id,
+                order_format(choices[call.message.chat.id], call.message)
+            )
+            choose_coffee(call.message)
+            get_order(call.message)
     elif call.data == 'clear_order':
         choices[call.message.chat.id].clear()
         bot.send_message(call.message.chat.id, m.OK)
@@ -125,6 +190,7 @@ def callback_handler(call):
                                      call.message)
                     )
                     bot.send_message(barista, '\n'.join(order))
+                    # send_mail()
                 choices[call.message.chat.id].clear()
                 bot.send_message(call.message.chat.id, m.RETRY)
             else:
