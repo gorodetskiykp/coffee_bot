@@ -9,7 +9,7 @@ from telebot import types
 
 import messages as m
 
-from config import TOKEN, BARISTAS
+from config import ADMIN_TELEGRAM_ID, BARISTAS, TOKEN
 
 bot = telebot.TeleBot(TOKEN)
 choices = defaultdict(list)  # для каждого пользователя список выбранных напитков
@@ -189,7 +189,10 @@ def callback_handler(call):
                         order_format(choices[call.message.chat.id],
                                      call.message)
                     )
-                    bot.send_message(barista, '\n'.join(order))
+                    try:
+                        bot.send_message(barista, '\n'.join(order))
+                    except Exception:
+                        bot.send_message(ADMIN_TELEGRAM_ID, "Не могу отправить сообщение в чат {}".format(barista))
                     # send_mail()
                 choices[call.message.chat.id].clear()
                 bot.send_message(call.message.chat.id, m.RETRY)
