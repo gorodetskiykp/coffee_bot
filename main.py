@@ -1,5 +1,6 @@
 import logging
 import smtplib
+import time
 
 from collections import defaultdict
 from random import randint
@@ -15,6 +16,7 @@ bot = telebot.TeleBot(TOKEN)
 choices = defaultdict(list)  # для каждого пользователя список выбранных напитков
 places_choice = defaultdict(list)  # для каждого пользователя список доступных мест
 places = defaultdict(list)  # для каждого пользователя текущее место заказа
+messages = defaultdict(list)   # для каждого пользователя список сообщений
 
 logger = telebot.logger
 logger.setLevel(logging.DEBUG)
@@ -76,7 +78,7 @@ def choose_place(message):
         )
     )
     keyboard.add(*buttons)
-    bot.send_message(message.chat.id, 'А вы где?', reply_markup=keyboard)
+    bot.send_message(message.chat.id, 'Куда принести заказ?', reply_markup=keyboard)
 
 
 def choose_other_place(message):
@@ -92,8 +94,8 @@ def choose_other_place(message):
         message.chat.id,
         order_format(choices[message.chat.id], message)
     )
-    get_order(message)
-
+    # get_order(message)
+    coffee_time(message)
 
 def get_order(message):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
@@ -112,7 +114,7 @@ def get_order(message):
 def order_format(items, message):
     order_items = set(items)
     place = ('➡️ {}'.format(places[message.chat.id][0])
-             if places[message.chat.id] else '👀 Мы не знаем, где вы(*')
+             if places[message.chat.id] else '👀 Пока не выбрано место доставки...')
 
     return '\n'.join(
         sorted([m.ORDER_FORMAT.format(item.capitalize(), items.count(item))
@@ -147,11 +149,28 @@ def coffee_time(message):
                 )
                 try:
                     bot.send_message(barista, '\n'.join(order))
+                    pass
                 except Exception:
                     bot.send_message(ADMIN_TELEGRAM_ID, "Не могу отправить сообщение в чат {}".format(barista))
                 # send_mail()
             choices[message.chat.id].clear()
             bot.send_message(message.chat.id, m.RETRY)
+            places_choice[message.chat.id].clear()
+            places[message.chat.id].clear()
+            for msg_id in range(message.id, messages[message.chat.id][0] - 1, -1):
+                try:
+                    bot.delete_message(message.chat.id, msg_id)
+                except:
+                    pass
+
+            time.sleep(1)
+
+            for msg_id in range(message.id + 3, message.id - 1, -1):
+                try:
+                    bot.delete_message(message.chat.id, msg_id)
+                except:
+                    pass
+
         else:
             choose_place(message)
     else:
@@ -162,6 +181,7 @@ def coffee_time(message):
 def start_message(message):
     client = message.chat.first_name
     bot.send_message(message.chat.id, m.START.format(client))
+    messages[message.chat.id].append(message.message_id)
     choose_coffee(message)
 
 
@@ -182,7 +202,7 @@ def callback_handler(call):
         )
         # choose_coffee(call.message)
         yes_or_no(call.message)
-        get_order(call.message)
+        # get_order(call.message)
     elif 'yes_no_pressed' in call.data:
         if call.data.split(':')[-1] == 'yes':
             choose_coffee(call.message)
@@ -204,8 +224,9 @@ def callback_handler(call):
                 call.message.chat.id,
                 order_format(choices[call.message.chat.id], call.message)
             )
-            choose_coffee(call.message)
-            get_order(call.message)
+            # choose_coffee(call.message)
+            # get_order(call.message)
+            coffee_time(call.message)
     elif call.data == 'clear_order':
         choices[call.message.chat.id].clear()
         bot.send_message(call.message.chat.id, m.OK)

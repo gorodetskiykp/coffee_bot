@@ -1,4 +1,4 @@
-TOKEN = '6756593581:AAF6Z9PZzwwefacI0v1hBXqAJpkENEeyhD4'  # это token разработчика - нужно заменить перед запуском
+TOKEN = '6756593581:AAHRJ5Ouv6UpszUN20WPFHeFdXKp_hALFXI'  # это token разработчика - нужно заменить перед запуском
 
 # даже если одна запись в круглых скобках, нужна запятая
 BARISTAS = (
