@@ -43,7 +43,7 @@ def send_mail():
 
 
 def choose_coffee(message):
-    keyboard = types.InlineKeyboardMarkup(row_width=3)
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
     buttons = []
     for idx, coffee_type in enumerate(m.COFFEE_BUTTONS):
         if coffee_type in choices[message.chat.id]:
@@ -55,9 +55,7 @@ def choose_coffee(message):
             )
         )
     keyboard.add(*buttons)
-    question = (m.COFFEE_QUESTION_MORE
-                if choices[message.chat.id] else m.COFFEE_QUESTION)
-    bot.send_message(message.chat.id, question, reply_markup=keyboard)
+    bot.send_message(message.chat.id, m.COFFEE_QUESTION, reply_markup=keyboard)
 
 
 def choose_place(message):
@@ -94,7 +92,6 @@ def choose_other_place(message):
         message.chat.id,
         order_format(choices[message.chat.id], message)
     )
-    choose_coffee(message)
     get_order(message)
 
 
@@ -122,6 +119,45 @@ def order_format(items, message):
                 for item in order_items])) + '\n{}'.format(place)
 
 
+def yes_or_no(message):
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        types.InlineKeyboardButton(text="Да", callback_data='yes_no_pressed:yes'),
+        types.InlineKeyboardButton(text="Нет", callback_data='yes_no_pressed:no'),
+    )
+    bot.send_message(message.chat.id, m.COFFEE_QUESTION_MORE, reply_markup=keyboard)
+
+
+def coffee_time(message):
+    if choices[message.chat.id]:
+        if places[message.chat.id]:
+            order_no = randint(1000, 9999)
+            order_no_full = 'Заказ № {}'.format(order_no)
+            bot.send_message(message.chat.id, m.COOKING.format(order_no))
+            for barista in BARISTAS:
+                client = '{} {} @{}'.format(
+                    message.chat.first_name,
+                    message.chat.last_name,
+                    message.chat.username
+                )
+                order = (
+                    order_no_full,
+                    client,
+                    order_format(choices[message.chat.id], message)
+                )
+                try:
+                    bot.send_message(barista, '\n'.join(order))
+                except Exception:
+                    bot.send_message(ADMIN_TELEGRAM_ID, "Не могу отправить сообщение в чат {}".format(barista))
+                # send_mail()
+            choices[message.chat.id].clear()
+            bot.send_message(message.chat.id, m.RETRY)
+        else:
+            choose_place(message)
+    else:
+        bot.send_message(message.chat.id, m.EMPTY_ORDER)
+        choose_coffee(message)
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
     client = message.chat.first_name
@@ -144,8 +180,14 @@ def callback_handler(call):
             call.message.chat.id,
             order_format(choices[call.message.chat.id], call.message)
         )
-        choose_coffee(call.message)
+        # choose_coffee(call.message)
+        yes_or_no(call.message)
         get_order(call.message)
+    elif 'yes_no_pressed' in call.data:
+        if call.data.split(':')[-1] == 'yes':
+            choose_coffee(call.message)
+        else:
+            coffee_time(call.message)
     elif 'place_button_pressed' in call.data:
         place_index = call.data.split(':')[-1]
         if place_index == 'other':
@@ -171,36 +213,7 @@ def callback_handler(call):
     elif call.data == 'choose_place':
         choose_place(call.message)
     elif call.data == 'coffee_time':
-        if choices[call.message.chat.id]:
-            if places[call.message.chat.id]:
-                order_no = randint(1000, 9999)
-                order_no_full = 'Заказ № {}'.format(order_no)
-                bot.send_message(call.message.chat.id,
-                                 m.COOKING.format(order_no))
-                for barista in BARISTAS:
-                    client = '{} {} @{}'.format(
-                        call.message.chat.first_name,
-                        call.message.chat.last_name,
-                        call.message.chat.username
-                    )
-                    order = (
-                        order_no_full,
-                        client,
-                        order_format(choices[call.message.chat.id],
-                                     call.message)
-                    )
-                    try:
-                        bot.send_message(barista, '\n'.join(order))
-                    except Exception:
-                        bot.send_message(ADMIN_TELEGRAM_ID, "Не могу отправить сообщение в чат {}".format(barista))
-                    # send_mail()
-                choices[call.message.chat.id].clear()
-                bot.send_message(call.message.chat.id, m.RETRY)
-            else:
-                choose_place(call.message)
-        else:
-            bot.send_message(call.message.chat.id, m.EMPTY_ORDER)
-            choose_coffee(call.message)
+        coffee_time(call.message)
 
 
 @bot.message_handler(commands=["id"])
